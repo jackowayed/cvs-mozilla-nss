@@ -20,6 +20,7 @@
 #include "blapi.h"
 #endif
 #include "prinit.h"
+#include <assert.h>
 
 static unsigned char  key_name[SESS_TICKET_KEY_NAME_LEN];
 static PK11SymKey    *session_ticket_enc_key_pkcs11 = NULL;
@@ -221,7 +222,7 @@ ssl3_GetSessionTicketKeys(const unsigned char **aes_key,
  * will be registered here.
  */
 /* This table is used by the server, to handle client hello extensions. */
-static const ssl3HelloExtensionHandler clientHelloHandlers[] = {
+static const ssl3HelloExtensionHandler builtinClientHelloHandlers[] = {
     { ssl_server_name_xtn,        &ssl3_HandleServerNameXtn },
 #ifdef NSS_ENABLE_ECC
     { ssl_elliptic_curves_xtn,    &ssl3_HandleSupportedCurvesXtn },
@@ -234,10 +235,14 @@ static const ssl3HelloExtensionHandler clientHelloHandlers[] = {
     { ssl_cert_status_xtn,        &ssl3_ServerHandleStatusRequestXtn },
     { -1, NULL }
 };
+static ssl3HelloExtensionHandlerCollection clientHelloHandlers = {
+    builtinClientHelloHandlers, -1/* needs to be computed */, NULL, 0, 0
+};
+
 
 /* These two tables are used by the client, to handle server hello
  * extensions. */
-static const ssl3HelloExtensionHandler serverHelloHandlersTLS[] = {
+static const ssl3HelloExtensionHandler builtinServerHelloHandlersTLS[] = {
     { ssl_server_name_xtn,        &ssl3_HandleServerNameXtn },
     /* TODO: add a handler for ssl_ec_point_formats_xtn */
     { ssl_session_ticket_xtn,     &ssl3_ClientHandleSessionTicketXtn },
@@ -247,10 +252,16 @@ static const ssl3HelloExtensionHandler serverHelloHandlersTLS[] = {
     { ssl_cert_status_xtn,        &ssl3_ClientHandleStatusRequestXtn },
     { -1, NULL }
 };
+static ssl3HelloExtensionHandlerCollection serverHelloHandlersTLS = {
+    builtinServerHelloHandlersTLS, -1, NULL, 0, 0
+};
 
-static const ssl3HelloExtensionHandler serverHelloHandlersSSL3[] = {
+static const ssl3HelloExtensionHandler builtinServerHelloHandlersSSL3[] = {
     { ssl_renegotiation_info_xtn, &ssl3_HandleRenegotiationInfoXtn },
     { -1, NULL }
+};
+static ssl3HelloExtensionHandlerCollection serverHelloHandlersSSL3 = {
+    builtinServerHelloHandlersSSL3, -1, NULL, 0, 0
 };
 
 /* Tables of functions to format TLS hello extensions, one function per
@@ -270,7 +281,8 @@ ssl3HelloExtensionSender clientHelloSendersTLS[SSL_MAX_EXTENSIONS] = {
     { ssl_session_ticket_xtn,     &ssl3_SendSessionTicketXtn },
     { ssl_next_proto_nego_xtn,    &ssl3_ClientSendNextProtoNegoXtn },
     { ssl_use_srtp_xtn,           &ssl3_SendUseSRTPXtn },
-    { ssl_cert_status_xtn,        &ssl3_ClientSendStatusRequestXtn }
+    { ssl_cert_status_xtn,        &ssl3_ClientSendStatusRequestXtn },
+    { -1, NULL }
     /* any extra entries will appear as { 0, NULL }    */
 };
 
@@ -279,6 +291,149 @@ ssl3HelloExtensionSender clientHelloSendersSSL3[SSL_MAX_EXTENSIONS] = {
     { ssl_renegotiation_info_xtn, &ssl3_SendRenegotiationInfoXtn }
     /* any extra entries will appear as { 0, NULL }    */
 };
+
+/* Initialize coll, whose builtin must already be populated. */
+static void
+hello_extension_collection_init(ssl3HelloExtensionHandlerCollection *coll) {
+    int i;
+    for (i = 0; coll->builtin_handlers[i].ex_type > 0; i++) {
+        // Counting how many there are
+    }
+    coll->builtin_len = i + 1;
+}
+
+/* Returns PR_TRUE if coll has had _init called, else PR_FALSE */
+static PRBool
+hello_extension_collection_is_inited(ssl3HelloExtensionHandlerCollection *coll) {
+    return coll->builtin_len == -1;
+}
+
+/* Init if not already inited */
+static void
+hello_extension_collection_ensure_inited(ssl3HelloExtensionHandlerCollection *coll) {
+    if (hello_extension_collection_is_inited(coll)) {
+        hello_extension_collection_init(coll);
+    }
+}
+
+/* Append handler to coll->custom_handlers. */
+static void
+hello_extension_collection_append(ssl3HelloExtensionHandlerCollection *coll,
+                                  ssl3CustomHelloExtensionHandler *handler) {
+    // Make sure we have space to append.
+    if (coll->custom_len == 0) {
+        // custom_handlers is NULL. allocate it
+        coll->custom_alloced_len = INITIAL_CUSTOM_HANDLERS_ARR_SIZE;
+        coll->custom_handlers = PORT_Alloc(sizeof(*coll->custom_handlers) * coll->custom_alloced_len);
+    } else if (coll->custom_len == coll->custom_alloced_len) {
+        // Array is full.
+        coll->custom_len *= 2;
+        coll->custom_handlers = PORT_Realloc(coll->custom_handlers,
+                                             sizeof(*coll->custom_handlers) * coll->custom_len);
+    }
+    // Append
+    coll->custom_handlers[coll->custom_len] = *handler;
+    ++coll->custom_len;
+}
+
+/* Frees memory allocated on behalf of coll, but does not free coll itself */
+static void
+hello_extension_collection_destroy(ssl3HelloExtensionHandlerCollection *coll) {
+    if (coll->custom_handlers != NULL) {
+        free(coll->custom_handlers);
+    }
+}
+
+/* Iterator over all handlers in coll */
+typedef struct {
+    ssl3HelloExtensionHandlerCollection *coll;
+    PRBool on_builtin;
+    PRInt32 next_idx;
+} ssl3HelloExtensionHandlerCollectionIterator;
+
+/* Abstract interface to either an ssl3HelloExtensionHandler or an
+   ssl3CustomHelloExtensionHandler.
+    Returned by the Iterator. */
+typedef struct {
+    PRBool is_builtin;
+    union {
+        const ssl3HelloExtensionHandler *builtin;
+        ssl3CustomHelloExtensionHandler *client_supplied;
+    };
+} ssl3AbstractHelloExtensionHandler;
+
+
+/* Initialize iter to be an iterator over coll.
+   Also ensure that coll has been initialized. */
+static void
+hello_extension_collection_iterator(ssl3HelloExtensionHandlerCollectionIterator *iter,
+                                    ssl3HelloExtensionHandlerCollection *coll) {
+    iter->coll = coll;
+    hello_extension_collection_ensure_inited(iter->coll);
+    // Start with the builtin ones, if there are any.
+    iter->on_builtin = coll->builtin_len > 0;
+    iter->next_idx = 0;
+}
+
+/* Returns PR_TRUE if iter has more handlers to return, else PR_FALSE */
+static PRBool
+hello_extension_collection_iterator_has_next(ssl3HelloExtensionHandlerCollectionIterator *iter) {
+    if (iter->on_builtin) {
+        // onBuiltin will only be true if there are builtin handlers and we
+        // haven't returned the last one.
+        return PR_TRUE;
+    } else {
+        return iter->next_idx < iter->coll->custom_len;
+    }
+}
+
+/* Populate handler with the next handler in iter.*/
+static void
+hello_extension_collection_iterator_pop(ssl3AbstractHelloExtensionHandler *handler,
+                                        ssl3HelloExtensionHandlerCollectionIterator *iter) {
+    assert(hello_extension_collection_iterator_has_next(iter));
+    if (iter->on_builtin) {
+        handler->builtin = &iter->coll->builtin_handlers[iter->next_idx++];
+        handler->is_builtin = PR_TRUE;
+
+        // Check if we've finished the builtin ones.
+        if (iter->next_idx == iter->coll->builtin_len) {
+            iter->on_builtin = PR_FALSE;
+            iter->next_idx = 0;
+        }
+    } else {
+        handler->is_builtin = PR_FALSE;
+        handler->client_supplied = &iter->coll->custom_handlers[iter->next_idx++];
+    }
+}
+
+/* Returns true if builtin should be used, false if client_supplied should be used. */
+static PRBool
+abstract_extension_handler_is_builtin(ssl3AbstractHelloExtensionHandler *abstract_handler) {
+    return abstract_handler->is_builtin;
+}
+
+/* Returns the extension type number of handler */
+static PRInt32
+abstract_extension_handler_ex_type(ssl3AbstractHelloExtensionHandler *handler){
+    if (abstract_extension_is_builtin(handler)) {
+        return handler->builtin->ex_type;
+    } else {
+        return handler->client_supplied->ex_type;
+    }
+}
+
+/* Call the handler callback stored by handler. */
+static SECStatus
+abstract_extension_handler_call(ssl3AbstractHelloExtensionHandler *handler,
+                                sslSocket *ss, PRUint16 ex_type, SECItem *data) {
+    if (abstract_extension_handler_is_builtin(handler)) {
+        return handler->builtin->ex_handler(ss, ex_type, data);
+    } else {
+        return handler->client_supplied->ex_handler(handler->client_supplied->context,
+                                                     ss->fd, ex_type, data);
+    }
+}
 
 static PRBool
 arrayContainsExtension(const PRUint16 *array, PRUint32 len, PRUint16 ex_type)
@@ -1586,18 +1741,17 @@ ssl3_ParseEncryptedSessionTicket(sslSocket *ss, SECItem *data,
 SECStatus 
 ssl3_HandleHelloExtensions(sslSocket *ss, SSL3Opaque **b, PRUint32 *length)
 {
-    const ssl3HelloExtensionHandler * handlers;
+    ssl3HelloExtensionHandlerCollection *handlers;
 
     if (ss->sec.isServer) {
-        handlers = clientHelloHandlers;
+        handlers = &clientHelloHandlers;
     } else if (ss->version > SSL_LIBRARY_VERSION_3_0) {
-        handlers = serverHelloHandlersTLS;
+        handlers = &serverHelloHandlersTLS;
     } else {
-        handlers = serverHelloHandlersSSL3;
+        handlers = &serverHelloHandlersSSL3;
     }
 
     while (*length) {
-	const ssl3HelloExtensionHandler * handler;
 	SECStatus rv;
 	PRInt32   extension_type;
 	SECItem   extension_data;
@@ -1624,11 +1778,15 @@ ssl3_HandleHelloExtensions(sslSocket *ss, SSL3Opaque **b, PRUint32 *length)
 	    return SECFailure;
 
 	/* find extension_type in table of Hello Extension Handlers */
-	for (handler = handlers; handler->ex_type >= 0; handler++) {
+  ssl3HelloExtensionHandlerCollectionIterator iter;
+	for (hello_extension_collection_iterator(&iter, handlers);
+       hello_extension_collection_iterator_has_next(&iter); ) {
+      ssl3AbstractHelloExtensionHandler handler;
+      hello_extension_collection_iterator_pop(&handler, &iter);
 	    /* if found, call this handler */
-	    if (handler->ex_type == extension_type) {
-		rv = (*handler->ex_handler)(ss, (PRUint16)extension_type, 
-	                                         	&extension_data);
+	    if (abstract_extension_handler_ex_type(&handler) == extension_type) {
+          rv = abstract_extension_handler_call(&handler, ss, (PRUint16)extension_type, 
+                                               &extension_data);
 		/* Ignore this result */
 		/* Treat all bad extensions as unrecognized types. */
 	        break;
@@ -1987,3 +2145,37 @@ ssl3_HandleUseSRTPXtn(sslSocket * ss, PRUint16 ex_type, SECItem *data)
     return ssl3_RegisterServerHelloExtensionSender(ss, ssl_use_srtp_xtn,
 						   ssl3_SendUseSRTPXtn);
 }
+
+
+
+//WORK IN PROGRESS
+void
+SSL_SetCustomClientHelloTLS(PRInt32 ex_type, SSL_HelloExtensionHandlerFunc hello_sender,
+                         SSL_HelloExtensionHandlerFunc server_hello_handler, void *context) {
+    ssl3CustomHelloExtensionHandler *handler = PORT_Alloc(sizeof(*handler));
+    handler->ex_type = ex_type;
+    handler->ex_handler = server_hello_handler;
+    handler->context = context;
+    hello_extension_collection_append(serverHelloHandlersTLS, handler);
+
+    // TODO add the hello sender to a similar structure.
+}
+
+SECStatus SSL_RegisterServerHelloExtensionSender(PRFileDesc *fd, PRUint16 ex_type,
+                                                 ssl3HelloExtensionSenderFunc cb) {
+    return ssl3_RegisterServerHelloExtensionSender(ssl_FindSocket(fd), ex_type, cb);
+}
+
+void
+SSL_SetCustomServerHello(PRInt32 ex_type, ssl3HellExtensionHandlerFunc client_hello_handler,
+                         void *context) {
+    // client_hello_handler should call SSL_RegisterServerHelloExtensionSender when it
+    // wants to respond with serverhello info.
+
+    ssl3CustomHelloExtensionHandler *handler = PORT_Alloc(sizeof(*handler));
+    handler->ex_type = ex_type;
+    handler->ex_handler = client_hello_handler;
+    handler->context = context;
+    hello_extension_collection_append(clientHelloHandlers, handler);
+}
+

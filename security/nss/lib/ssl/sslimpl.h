@@ -218,6 +218,30 @@ typedef struct {
     ssl3HelloExtensionHandlerFunc ex_handler;
 } ssl3HelloExtensionHandler;
 
+typedef SECStatus (*SSL_HelloExtensionHandlerFunc)(void *context, PRFileDesc *fd,
+                                                    PRUint16 ex_type, SECItem *data);
+typedef PRInt32 (*SSL_HelloExtensionSenderFunc)(void *context, PRFileDesc *fd,
+                                                PRBool append, PRUint32 maxBytes);
+
+/* A client-supplied Hello Extension handler */
+typedef struct {
+    PRInt32 ex_type; // The extension number
+    SSL_HelloExtensionHandlerFunc ex_handler; // Function pointer
+    void *context; // Client-supplied pointer that is passed to handler.
+} ssl3CustomHelloExtensionHandler;
+
+/* A full set of Hello Extension handlers, including both
+   builtin handlers and client-supplied handlers */
+typedef struct {
+    const ssl3HelloExtensionHandler *builtin_handlers;
+    PRInt32 builtin_len;
+    ssl3CustomHelloExtensionHandler *custom_handlers;
+    PRInt32 custom_len;
+    PRInt32 custom_alloced_len;
+} ssl3HelloExtensionHandlerCollection;
+
+#define INITIAL_CUSTOM_HANDLERS_ARR_SIZE 4
+
 extern SECStatus 
 ssl3_RegisterServerHelloExtensionSender(sslSocket *ss, PRUint16 ex_type,
 				        ssl3HelloExtensionSenderFunc cb);
