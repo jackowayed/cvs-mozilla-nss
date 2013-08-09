@@ -1,0 +1,13 @@
+/.cvsignore/1.2/Sat May 12 00:53:26 2001//THEAD
+/LICENSE/1.1/Tue Mar  6 13:16:12 2012//THEAD
+/Makefile.in/1.26/Tue Mar  6 13:13:35 2012//THEAD
+/aclocal.m4/1.1/Fri Sep 24 18:10:19 2010//THEAD
+/configure/1.339/Thu Mar 14 17:34:31 2013//THEAD
+/configure.in/1.342/Thu Mar 14 17:34:31 2013//THEAD
+D/admin////
+D/build////
+D/config////
+D/lib////
+D/pkg////
+D/pr////
+D/tools////

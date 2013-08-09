@@ -1,0 +1,17 @@
+/.cvsignore/1.2/Sat May 12 06:11:46 2001//THEAD
+/Makefile.in/1.18/Tue Mar  6 13:14:13 2012//THEAD
+/objs.mk/1.9/Tue Mar  6 13:14:14 2012//THEAD
+/os2_errors.c/3.11/Tue Mar  6 13:14:14 2012//THEAD
+/os2cv.c/3.17/Tue Mar  6 13:14:14 2012//THEAD
+/os2emx.s/1.5/Tue Mar  6 13:14:14 2012//THEAD
+/os2gc.c/3.8/Tue Mar  6 13:14:14 2012//THEAD
+/os2inrval.c/3.11/Tue Mar  6 13:14:14 2012//THEAD
+/os2io.c/3.20/Tue Mar  6 13:14:14 2012//THEAD
+/os2misc.c/3.28/Tue Mar  6 13:14:14 2012//THEAD
+/os2poll.c/3.16/Tue Mar  6 13:14:14 2012//THEAD
+/os2rng.c/1.7/Tue Mar  6 13:14:14 2012//THEAD
+/os2sem.c/3.7/Tue Mar  6 13:14:14 2012//THEAD
+/os2sock.c/3.20/Tue Mar  6 13:14:14 2012//THEAD
+/os2thred.c/3.22/Tue Mar  6 13:14:14 2012//THEAD
+/os2vaclegacy.s/3.3/Tue Mar  6 13:14:14 2012//THEAD
+D

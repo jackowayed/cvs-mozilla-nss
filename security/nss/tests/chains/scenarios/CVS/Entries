@@ -1,0 +1,22 @@
+/aia.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/anypolicy.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/anypolicywithlevel.cfg/1.4/Tue Mar 20 14:47:28 2012//THEAD
+/bridge.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/bridgewithaia.cfg/1.4/Tue Mar 20 14:47:28 2012//THEAD
+/bridgewithhalfaia.cfg/1.4/Tue Mar 20 14:47:28 2012//THEAD
+/bridgewithpolicyextensionandmapping.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/crldp.cfg/1.4/Tue Mar 20 14:47:28 2012//THEAD
+/dsa.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/explicitPolicy.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/extension.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/extension2.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/mapping.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/mapping2.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/megabridge_3_2.cfg/1.3/Tue Mar 20 14:47:28 2012//THEAD
+/ocsp.cfg/1.9/Tue Mar 20 14:47:28 2012//THEAD
+/ocspd.cfg/1.4/Tue Mar 20 14:47:28 2012//THEAD
+/realcerts.cfg/1.4/Tue Mar 20 14:47:29 2012//THEAD
+/revoc.cfg/1.3/Tue Mar 20 14:47:29 2012//THEAD
+/scenarios/1.10/Mon Jan  7 03:56:15 2013//THEAD
+/trustanchors.cfg/1.1/Mon Jan  7 03:56:15 2013//THEAD
+D

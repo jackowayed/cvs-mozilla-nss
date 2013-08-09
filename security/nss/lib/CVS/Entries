@@ -1,0 +1,24 @@
+/Makefile/1.17/Wed Apr 25 14:49:24 2012//THEAD
+/manifest.mn/1.24/Wed Apr 25 14:49:24 2012//THEAD
+D/base////
+D/certdb////
+D/certhigh////
+D/ckfw////
+D/crmf////
+D/cryptohi////
+D/dev////
+D/freebl////
+D/jar////
+D/libpkix////
+D/nss////
+D/pk11wrap////
+D/pkcs12////
+D/pkcs7////
+D/pki////
+D/smime////
+D/softoken////
+D/sqlite////
+D/ssl////
+D/sysinit////
+D/util////
+D/zlib////

@@ -1,0 +1,7 @@
+/.cvsignore/1.2/Sat May 12 04:24:53 2001//THEAD
+/Makefile.in/1.13/Tue Mar  6 13:14:11 2012//THEAD
+/prosdep.c/3.17/Tue Nov 13 23:17:59 2012//THEAD
+D/beos////
+D/os2////
+D/unix////
+D/windows////

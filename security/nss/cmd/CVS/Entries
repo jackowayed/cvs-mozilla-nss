@@ -1,0 +1,61 @@
+/.cvsignore/1.1/Fri Mar 31 20:10:14 2000//THEAD
+/Makefile/1.12/Wed Aug 29 19:04:53 2012//THEAD
+/manifest.mn/1.39/Sat Nov 17 11:52:36 2012//THEAD
+/platlibs.mk/1.72/Wed Nov 14 01:14:08 2012//THEAD
+/platrules.mk/1.4/Tue Mar 20 14:46:51 2012//THEAD
+D/addbuiltin////
+D/atob////
+D/bltest////
+D/btoa////
+D/certcgi////
+D/certutil////
+D/checkcert////
+D/chktest////
+D/crlutil////
+D/crmf-cgi////
+D/crmftest////
+D/dbck////
+D/dbtest////
+D/derdump////
+D/digest////
+D/ecperf////
+D/fipstest////
+D/httpserv////
+D/lib////
+D/libpkix////
+D/listsuites////
+D/lowhashtest////
+D/makepqg////
+D/modutil////
+D/multinit////
+D/ocspclnt////
+D/ocspresp////
+D/oidcalc////
+D/p7content////
+D/p7env////
+D/p7sign////
+D/p7verify////
+D/pk11mode////
+D/pk11util////
+D/pk12util////
+D/pk1sign////
+D/pkix-errcodes////
+D/pp////
+D/ppcertdata////
+D/pwdecrypt////
+D/rsaperf////
+D/rsapoptst////
+D/samples////
+D/sdrtest////
+D/selfserv////
+D/shlibsign////
+D/signtool////
+D/signver////
+D/smimetools////
+D/ssltap////
+D/strsclnt////
+D/symkeyutil////
+D/tests////
+D/tstclnt////
+D/vfychain////
+D/vfyserv////

@@ -1,0 +1,24 @@
+/.cvsignore/1.1/Fri Jun  2 18:37:14 2000//THEAD
+/Makefile/1.3/Wed Apr 25 14:49:26 2012//THEAD
+/alg1485.c/1.45/Fri Sep 28 16:05:02 2012//THEAD
+/cert.h/1.91/Fri Sep 28 16:05:02 2012//THEAD
+/certdb.c/1.124/Mon Jan  7 04:11:50 2013//THEAD
+/certdb.h/1.24/Wed Apr 25 14:49:26 2012//THEAD
+/certi.h/1.38/Thu Dec  6 17:56:57 2012//THEAD
+/certt.h/1.58/Mon Jan  7 03:56:12 2013//THEAD
+/certv3.c/1.13/Wed Apr 25 14:49:26 2012//THEAD
+/certxutl.c/1.9/Wed Apr 25 14:49:26 2012//THEAD
+/certxutl.h/1.5/Wed Apr 25 14:49:26 2012//THEAD
+/config.mk/1.4/Wed Apr 25 14:49:26 2012//THEAD
+/crl.c/1.73/Wed Apr 25 14:49:26 2012//THEAD
+/genname.c/1.42/Wed Apr 25 14:49:26 2012//THEAD
+/genname.h/1.13/Wed Apr 25 14:49:26 2012//THEAD
+/manifest.mn/1.14/Wed Apr 25 14:49:27 2012//THEAD
+/polcyxtn.c/1.14/Wed Apr 25 14:49:27 2012//THEAD
+/secname.c/1.28/Wed Sep 19 15:08:07 2012//THEAD
+/stanpcertdb.c/1.93/Mon Jan  7 04:11:50 2013//THEAD
+/xauthkid.c/1.11/Wed Apr 25 14:49:27 2012//THEAD
+/xbsconst.c/1.10/Wed Apr 25 14:49:27 2012//THEAD
+/xconst.c/1.16/Wed Apr 25 14:49:27 2012//THEAD
+/xconst.h/1.7/Wed Apr 25 14:49:27 2012//THEAD
+D

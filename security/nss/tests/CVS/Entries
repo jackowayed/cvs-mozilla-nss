@@ -1,0 +1,47 @@
+/README.txt/1.1/Fri Nov 21 15:42:25 2008//THEAD
+/all.sh/1.60/Fri Feb 15 17:56:59 2013//THEAD
+/clean_tbx/1.2/Thu Mar 28 00:42:35 2002//THEAD
+/core_watch/1.3/Tue Feb 20 21:58:03 2001//THEAD
+/dll_version.sh/1.1/Wed Jun 13 00:10:53 2001//THEAD
+/header/1.72/Wed Jun 25 21:57:21 2003//THEAD
+/jss_dll_version.sh/1.1/Thu Oct 11 01:01:09 2001//THEAD
+/jssdir/1.2/Thu Mar 28 00:42:35 2002//THEAD
+/jssqa/1.4/Thu Oct 10 20:36:51 2002//THEAD
+/mksymlinks/1.10/Thu Feb 13 01:45:01 2003//THEAD
+/nssdir/1.7/Tue Apr 16 20:57:41 2002//THEAD
+/nsspath/1.2/Mon Jul  9 22:48:40 2001//THEAD
+/nssqa/1.23/Wed May 28 17:28:36 2003//THEAD
+/path_uniq/1.3/Fri Jul  6 20:26:27 2001//THEAD
+/platformlist/1.12/Thu Mar  4 22:47:43 2004//THEAD
+/platformlist.tbx/1.5/Fri Oct 26 18:10:37 2001//THEAD
+/qa_stage/1.8/Fri Apr  5 01:41:34 2002//THEAD
+/qa_stat/1.45/Thu Jul  3 17:50:18 2003//THEAD
+/qaclean/1.6/Fri Sep  7 21:28:08 2001//THEAD
+/run_niscc.sh/1.7/Fri Jul 13 20:30:25 2012//THEAD
+/set_environment/1.22/Tue Apr 16 20:57:42 2002//THEAD
+D/cert////
+D/chains////
+D/cipher////
+D/cmdtests////
+D/common////
+D/crmf////
+D/dbtests////
+D/dbupgrade////
+D/doc////
+D/dummy////
+D/fips////
+D/iopr////
+D/libpkix////
+D/lowhash////
+D/memleak////
+D/merge////
+D/multinit////
+D/ocsp////
+D/perf////
+D/pkcs11////
+D/pkits////
+D/remote////
+D/sdr////
+D/smime////
+D/ssl////
+D/tools////

@@ -1,0 +1,11 @@
+/.cvsignore/1.2/Sat May 12 06:00:27 2001//THEAD
+/Makefile.in/1.11/Tue Mar  6 13:14:01 2012//THEAD
+/bsrcs.mk/3.7/Tue Mar  6 13:14:01 2012//THEAD
+/btcvar.c/3.10/Tue Mar  6 13:14:02 2012//THEAD
+/btlocks.c/3.9/Tue Mar  6 13:14:02 2012//THEAD
+/btmisc.c/3.6/Tue Mar  6 13:14:02 2012//THEAD
+/btmon.c/3.8/Tue Mar  6 13:14:02 2012//THEAD
+/btsem.c/3.8/Tue Mar  6 13:14:02 2012//THEAD
+/btthread.c/3.10/Tue Mar  6 13:14:02 2012//THEAD
+/objs.mk/3.7/Tue Mar  6 13:14:02 2012//THEAD
+D
