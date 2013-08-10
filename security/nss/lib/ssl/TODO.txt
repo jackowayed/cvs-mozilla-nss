@@ -1,0 +1,9 @@
+* Make existing tests pass
+* Write tests
+* Consider simplifying handler code by changing the builtin ones to be of type SSL_HelloExtensionHandlerFunc and dumping all the Abstract stuff
+* Finish Sender stuff.
+* Style--make sure naming, etc. is reasonable for project's bounds. Especially public names. Right now I know it's a mess.
+
+Challenges:
+* Public interface--eg. how much of the stuff in sslSocket might an extension handler/sender need to touch?
+* Balance between simplicity of the new functionality vs. keeping it separate from the new functionality. Eg. the question of whether to change all the existing callbacks to the public type signature to make that easier.
