@@ -20,7 +20,6 @@
 #include "blapi.h"
 #endif
 #include "prinit.h"
-#include <assert.h>
 
 static unsigned char  key_name[SESS_TICKET_KEY_NAME_LEN];
 static PK11SymKey    *session_ticket_enc_key_pkcs11 = NULL;
@@ -391,7 +390,7 @@ hello_extension_collection_iterator_has_next(ssl3HelloExtensionHandlerCollection
 static void
 hello_extension_collection_iterator_pop(ssl3AbstractHelloExtensionHandler *handler,
                                         ssl3HelloExtensionHandlerCollectionIterator *iter) {
-    assert(hello_extension_collection_iterator_has_next(iter));
+    PORT_Assert(hello_extension_collection_iterator_has_next(iter));
     if (iter->on_builtin) {
         handler->builtin = &iter->coll->builtin_handlers[iter->next_idx++];
         handler->is_builtin = PR_TRUE;
