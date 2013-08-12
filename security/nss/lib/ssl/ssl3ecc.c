@@ -1010,11 +1010,12 @@ static const PRUint8 ECPtFmt[6] = {
  * which says that we support all TLS-defined named curves.
  */
 PRInt32
-ssl3_SendSupportedCurvesXtn(
-			sslSocket * ss,
-			PRBool      append,
-			PRUint32    maxBytes)
+ssl3_SendSupportedCurvesXtn(void *context, PRFileDesc *fd, PRBool append,
+                       PRUint32 maxBytes)
 {
+    sslSocket *ss = ssl_FindSocket(fd);
+    PORT_Assert(ss != NULL);
+
     if (!ss || !ssl3_IsECCEnabled(ss))
     	return 0;
     if (append && maxBytes >= (sizeof EClist)) {
@@ -1034,11 +1035,12 @@ ssl3_SendSupportedCurvesXtn(
  * which says that we only support uncompressed points.
  */
 PRInt32
-ssl3_SendSupportedPointFormatsXtn(
-			sslSocket * ss,
-			PRBool      append,
-			PRUint32    maxBytes)
+ssl3_SendSupportedPointFormatsXtn(void *context, PRFileDesc *fd, PRBool append,
+                       PRUint32 maxBytes)
 {
+    sslSocket *ss = ssl_FindSocket(fd);
+    PORT_Assert(ss != NULL);
+
     if (!ss || !ssl3_IsECCEnabled(ss))
     	return 0;
     if (append && maxBytes >= (sizeof ECPtFmt)) {

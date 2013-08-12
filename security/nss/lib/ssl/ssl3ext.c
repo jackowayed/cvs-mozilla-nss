@@ -47,29 +47,30 @@ static SECStatus ssl3_GetSessionTicketKeys(const unsigned char **aes_key,
     PRUint32 *aes_key_length, const unsigned char **mac_key,
     PRUint32 *mac_key_length);
 #endif
-static PRInt32 ssl3_SendRenegotiationInfoXtn(sslSocket * ss,
-    PRBool append, PRUint32 maxBytes);
+static PRInt32 ssl3_SendRenegotiationInfoXtn(void *context, PRFileDesc *fd,
+                                             PRBool append, PRUint32 maxBytes);
+
 static SECStatus ssl3_HandleRenegotiationInfoXtn(sslSocket *ss, 
     PRUint16 ex_type, SECItem *data);
 static SECStatus ssl3_ClientHandleNextProtoNegoXtn(sslSocket *ss,
 			PRUint16 ex_type, SECItem *data);
 static SECStatus ssl3_ServerHandleNextProtoNegoXtn(sslSocket *ss,
-			PRUint16 ex_type, SECItem *data);
-static PRInt32 ssl3_ClientSendNextProtoNegoXtn(sslSocket *ss, PRBool append,
-					       PRUint32 maxBytes);
-static PRInt32 ssl3_SendUseSRTPXtn(sslSocket *ss, PRBool append,
-    PRUint32 maxBytes);
+                       PRUint16 ex_type, SECItem *data);
+static PRInt32 ssl3_ClientSendNextProtoNegoXtn(void *context, PRFileDesc *fd,
+                                               PRBool append, PRUint32 maxBytes);
+static PRInt32 ssl3_SendUseSRTPXtn(void *context, PRFileDesc *fd,
+                                   PRBool append, PRUint32 maxBytes);
 static SECStatus ssl3_HandleUseSRTPXtn(sslSocket * ss, PRUint16 ex_type,
     SECItem *data);
-static SECStatus ssl3_ServerSendStatusRequestXtn(sslSocket * ss,
-    PRBool      append, PRUint32    maxBytes);
+static SECStatus ssl3_ServerSendStatusRequestXtn(void *context, PRFileDesc *fd,
+                                                 PRBool append, PRUint32 maxBytes);
 static SECStatus ssl3_ServerHandleStatusRequestXtn(sslSocket *ss,
     PRUint16 ex_type, SECItem *data);
 static SECStatus ssl3_ClientHandleStatusRequestXtn(sslSocket *ss,
                                                   PRUint16 ex_type,
                                                   SECItem *data);
-static PRInt32 ssl3_ClientSendStatusRequestXtn(sslSocket * ss, PRBool append,
-                                              PRUint32 maxBytes);
+static PRInt32 ssl3_ClientSendStatusRequestXtn(void *context, PRFileDesc *fd,
+                                               PRBool append, PRUint32 maxBytes);
 
 /*
  * Write bytes.  Using this function means the SECItem structure
@@ -270,25 +271,25 @@ static ssl3HelloExtensionHandlerCollection serverHelloHandlersSSL3 = {
  * and sender functions are registered there.
  */
 static const 
-ssl3HelloExtensionSender clientHelloSendersTLS[SSL_MAX_EXTENSIONS] = {
-    { ssl_server_name_xtn,        &ssl3_SendServerNameXtn        },
-    { ssl_renegotiation_info_xtn, &ssl3_SendRenegotiationInfoXtn },
+ssl3HelloExtensionSender builtinClientHelloSendersTLS[] = {
+    { ssl_server_name_xtn,        &ssl3_SendServerNameXtn,            NULL },
+    { ssl_renegotiation_info_xtn, &ssl3_SendRenegotiationInfoXtn,     NULL },
 #ifdef NSS_ENABLE_ECC
-    { ssl_elliptic_curves_xtn,    &ssl3_SendSupportedCurvesXtn },
-    { ssl_ec_point_formats_xtn,   &ssl3_SendSupportedPointFormatsXtn },
+    { ssl_elliptic_curves_xtn,    &ssl3_SendSupportedCurvesXtn,       NULL },
+    { ssl_ec_point_formats_xtn,   &ssl3_SendSupportedPointFormatsXtn, NULL },
 #endif
-    { ssl_session_ticket_xtn,     &ssl3_SendSessionTicketXtn },
-    { ssl_next_proto_nego_xtn,    &ssl3_ClientSendNextProtoNegoXtn },
-    { ssl_use_srtp_xtn,           &ssl3_SendUseSRTPXtn },
-    { ssl_cert_status_xtn,        &ssl3_ClientSendStatusRequestXtn },
-    { -1, NULL }
-    /* any extra entries will appear as { 0, NULL }    */
+    { ssl_session_ticket_xtn,     &ssl3_SendSessionTicketXtn,         NULL },
+    { ssl_next_proto_nego_xtn,    &ssl3_ClientSendNextProtoNegoXtn,   NULL },
+    { ssl_use_srtp_xtn,           &ssl3_SendUseSRTPXtn,               NULL },
+    { ssl_cert_status_xtn,        &ssl3_ClientSendStatusRequestXtn,   NULL }
 };
 
+static
+ssl3HelloSenderCollection clientHelloSendersTLS = {NULL, -1, -1};
+
 static const 
-ssl3HelloExtensionSender clientHelloSendersSSL3[SSL_MAX_EXTENSIONS] = {
-    { ssl_renegotiation_info_xtn, &ssl3_SendRenegotiationInfoXtn }
-    /* any extra entries will appear as { 0, NULL }    */
+ssl3HelloExtensionSender clientHelloSendersSSL3[] = {
+    { ssl_renegotiation_info_xtn, &ssl3_SendRenegotiationInfoXtn, NULL }
 };
 
 /* Initialize coll, whose builtin must already be populated. */
@@ -415,7 +416,7 @@ abstract_extension_handler_is_builtin(ssl3AbstractHelloExtensionHandler *abstrac
 /* Returns the extension type number of handler */
 static PRInt32
 abstract_extension_handler_ex_type(ssl3AbstractHelloExtensionHandler *handler){
-    if (abstract_extension_is_builtin(handler)) {
+    if (abstract_extension_handler_is_builtin(handler)) {
         return handler->builtin->ex_type;
     } else {
         return handler->client_supplied->ex_type;
@@ -432,6 +433,38 @@ abstract_extension_handler_call(ssl3AbstractHelloExtensionHandler *handler,
         return handler->client_supplied->ex_handler(handler->client_supplied->context,
                                                      ss->fd, ex_type, data);
     }
+}
+
+static void
+ssl3_ExtensionSenderCollectionInit(ssl3HelloSenderCollection *coll,
+                         const ssl3HelloExtensionSender *builtin,
+                         PRInt32 builtin_bytes) {
+    coll->alloc_len = coll->len = builtin_bytes;
+    clientHelloSendersTLS.senders = PORT_Alloc(builtin_bytes);
+    PORT_Memcpy(coll->senders, builtin, builtin_bytes);
+}
+
+static void
+ssl3_ExtensionSenderCollectionEnsureInited(ssl3HelloSenderCollection *coll,
+                                           const ssl3HelloExtensionSender *builtin,
+                                           PRInt32 builtin_bytes) {
+    if (coll->senders == NULL) {
+        ssl3_ExtensionSenderCollectionInit(coll, builtin, builtin_bytes);
+    }
+}
+
+static void
+ssl3_ExtensionSenderCollectionAppend(ssl3HelloSenderCollection *coll,
+                                     ssl3HelloExtensionSender* sender) {
+    PORT_Assert(coll->senders != NULL);
+    if (coll->len == coll->alloc_len) {
+        coll->alloc_len *= 2; // TODO if starts with 0 builtin, will fail.
+        coll->senders = PORT_Realloc(coll->senders,
+                                     sizeof(*coll->senders) * coll->alloc_len);
+    }
+
+    coll->senders[coll->len] = *sender;
+    ++coll->len;
 }
 
 static PRBool
@@ -464,9 +497,11 @@ ssl3_ClientExtensionAdvertised(sslSocket *ss, PRUint16 ex_type) {
  * Used by client and server.
  */
 PRInt32
-ssl3_SendServerNameXtn(sslSocket * ss, PRBool append,
+ssl3_SendServerNameXtn(void *context, PRFileDesc *fd, PRBool append,
                        PRUint32 maxBytes)
 {
+    sslSocket *ss = ssl_FindSocket(fd);
+    PORT_Assert(ss != NULL);
     SECStatus rv;
     if (!ss)
     	return 0;
@@ -621,11 +656,12 @@ loser:
  * sends an empty ticket.  Servers always send empty tickets.
  */
 PRInt32
-ssl3_SendSessionTicketXtn(
-			sslSocket * ss,
-			PRBool      append,
-			PRUint32    maxBytes)
+ssl3_SendSessionTicketXtn(void *context, PRFileDesc *fd, PRBool append,
+                          PRUint32 maxBytes)
 {
+    sslSocket *ss = ssl_FindSocket(fd);
+    PORT_Assert(ss != NULL);
+
     PRInt32 extension_length;
     NewSessionTicket *session_ticket = NULL;
 
@@ -782,9 +818,12 @@ ssl3_ClientHandleNextProtoNegoXtn(sslSocket *ss, PRUint16 ex_type,
 }
 
 static PRInt32
-ssl3_ClientSendNextProtoNegoXtn(sslSocket * ss, PRBool append,
-				PRUint32 maxBytes)
+ssl3_ClientSendNextProtoNegoXtn(void *context, PRFileDesc *fd, PRBool append,
+                                PRUint32 maxBytes)
 {
+    sslSocket *ss = ssl_FindSocket(fd);
+    PORT_Assert(ss != NULL);
+
     PRInt32 extension_length;
 
     /* Renegotiations do not send this extension. */
@@ -829,11 +868,12 @@ ssl3_ClientHandleStatusRequestXtn(sslSocket *ss, PRUint16 ex_type,
 }
 
 static PRInt32
-ssl3_ServerSendStatusRequestXtn(
-			sslSocket * ss,
-			PRBool      append,
-			PRUint32    maxBytes)
+ssl3_ServerSendStatusRequestXtn(void *context, PRFileDesc *fd, PRBool append,
+                                PRUint32 maxBytes)
 {
+    sslSocket *ss = ssl_FindSocket(fd);
+    PORT_Assert(ss != NULL);
+
     PRInt32 extension_length;
     SECStatus rv;
 
@@ -858,9 +898,12 @@ ssl3_ServerSendStatusRequestXtn(
 /* ssl3_ClientSendStatusRequestXtn builds the status_request extension on the
  * client side. See RFC 4366 section 3.6. */
 static PRInt32
-ssl3_ClientSendStatusRequestXtn(sslSocket * ss, PRBool append,
-                               PRUint32 maxBytes)
+ssl3_ClientSendStatusRequestXtn(void *context, PRFileDesc *fd, PRBool append,
+                                PRUint32 maxBytes)
 {
+    sslSocket *ss = ssl_FindSocket(fd);
+    PORT_Assert(ss != NULL);
+
     PRInt32 extension_length;
 
     if (!ss->opt.enableOCSPStapling)
@@ -1798,28 +1841,27 @@ ssl3_HandleHelloExtensions(sslSocket *ss, SSL3Opaque **b, PRUint32 *length)
 /* Add a callback function to the table of senders of server hello extensions.
  */
 SECStatus 
-ssl3_RegisterServerHelloExtensionSender(sslSocket *ss, PRUint16 ex_type,
-				        ssl3HelloExtensionSenderFunc cb)
+ssl3_RegisterServerHelloExtensionSender(void *context, sslSocket *ss, PRUint16 ex_type,
+				        SSL_HelloExtensionSenderFunc cb)
 {
     int i;
-    ssl3HelloExtensionSender *sender = &ss->xtnData.serverSenders[0];
+    ssl3HelloExtensionSender *sender = &ss->xtnData.serverSenders.senders[0];
 
-    for (i = 0; i < SSL_MAX_EXTENSIONS; ++i, ++sender) {
-        if (!sender->ex_sender) {
-	    sender->ex_type   = ex_type;
-	    sender->ex_sender = cb;
-	    return SECSuccess;
-	}
+    for (i = 0; i < ss->xtnData.serverSenders.len; ++i, ++sender) {
 	/* detect duplicate senders */
 	PORT_Assert(sender->ex_type != ex_type);
 	if (sender->ex_type == ex_type) {
 	    /* duplicate */
-	    break;
-	}
-    }
-    PORT_Assert(i < SSL_MAX_EXTENSIONS); /* table needs to grow */
     PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
     return SECFailure;
+	}
+    }
+    ssl3HelloExtensionSender new_sender;
+    new_sender.ex_type   = ex_type;
+    new_sender.ex_sender = cb;
+    new_sender.context = context;
+    ssl3_ExtensionSenderCollectionAppend(&ss->xtnData.serverSenders, &new_sender);
+    return SECSuccess;
 }
 
 /* call each of the extension senders and return the accumulated length */
@@ -1831,13 +1873,22 @@ ssl3_CallHelloExtensionSenders(sslSocket *ss, PRBool append, PRUint32 maxBytes,
     int i;
 
     if (!sender) {
-    	sender = ss->version > SSL_LIBRARY_VERSION_3_0 ?
-                 &clientHelloSendersTLS[0] : &clientHelloSendersSSL3[0];
+        if (ss->version > SSL_LIBRARY_VERSION_3_0) {
+            ssl3_ExtensionSenderCollectionEnsureInited(&clientHelloSendersTLS,
+                                                       builtinClientHelloSendersTLS,
+                                                       sizeof(builtinClientHelloSendersTLS));
+            sender = &clientHelloSendersTLS.senders[0];
+        } else {
+            sender = &clientHelloSendersSSL3[0];
+        }
     }
 
+
+    // TODO fix this iteration, have it read the length from the Collection
+    // probably need to wrap the SSL3 one in a collection.
     for (i = 0; i < SSL_MAX_EXTENSIONS; ++i, ++sender) {
 	if (sender->ex_sender) {
-	    PRInt32 extLen = (*sender->ex_sender)(ss, append, maxBytes);
+	    PRInt32 extLen = (*sender->ex_sender)(sender->context, ss->fd, append, maxBytes);
 	    if (extLen < 0)
 	    	return -1;
 	    maxBytes        -= extLen;
@@ -1856,11 +1907,11 @@ ssl3_CallHelloExtensionSenders(sslSocket *ss, PRBool append, PRUint32 maxBytes,
  * Verify Data (SSL): 36 bytes (client) or 72 bytes (server)
  */
 static PRInt32 
-ssl3_SendRenegotiationInfoXtn(
-			sslSocket * ss,
-			PRBool      append,
-			PRUint32    maxBytes)
+ssl3_SendRenegotiationInfoXtn(void *context, PRFileDesc *fd, PRBool append,
+                       PRUint32 maxBytes)
 {
+    sslSocket *ss = ssl_FindSocket(fd);
+    PORT_Assert(ss != NULL);
     PRInt32 len, needed;
 
     /* In draft-ietf-tls-renegotiation-03, it is NOT RECOMMENDED to send
@@ -1905,7 +1956,7 @@ ssl3_ServerHandleStatusRequestXtn(sslSocket *ss, PRUint16 ex_type,
     ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ex_type;
     PORT_Assert(ss->sec.isServer);
     /* prepare to send back the appropriate response */
-    rv = ssl3_RegisterServerHelloExtensionSender(ss, ex_type,
+    rv = ssl3_RegisterServerHelloExtensionSender(NULL, ss, ex_type,
 					    ssl3_ServerSendStatusRequestXtn);
     return rv;
 }
@@ -1935,15 +1986,19 @@ ssl3_HandleRenegotiationInfoXtn(sslSocket *ss, PRUint16 ex_type, SECItem *data)
     ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ex_type;
     if (ss->sec.isServer) {
 	/* prepare to send back the appropriate response */
-	rv = ssl3_RegisterServerHelloExtensionSender(ss, ex_type,
+        rv = ssl3_RegisterServerHelloExtensionSender(NULL, ss, ex_type,
 					     ssl3_SendRenegotiationInfoXtn);
     }
     return rv;
 }
 
 static PRInt32
-ssl3_SendUseSRTPXtn(sslSocket *ss, PRBool append, PRUint32 maxBytes)
+ssl3_SendUseSRTPXtn(void *context, PRFileDesc *fd, PRBool append,
+                    PRUint32 maxBytes)
 {
+    sslSocket *ss = ssl_FindSocket(fd);
+    PORT_Assert(ss != NULL);
+
     PRUint32 ext_data_len;
     PRInt16 i;
     SECStatus rv;
@@ -2141,40 +2196,53 @@ ssl3_HandleUseSRTPXtn(sslSocket * ss, PRUint16 ex_type, SECItem *data)
     ss->ssl3.dtlsSRTPCipherSuite = cipher;
     ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ssl_use_srtp_xtn;
 
-    return ssl3_RegisterServerHelloExtensionSender(ss, ssl_use_srtp_xtn,
+    return ssl3_RegisterServerHelloExtensionSender(NULL, ss, ssl_use_srtp_xtn,
 						   ssl3_SendUseSRTPXtn);
 }
 
 
 
-//WORK IN PROGRESS
 void
-SSL_SetCustomClientHelloTLS(PRInt32 ex_type, SSL_HelloExtensionHandlerFunc hello_sender,
-                         SSL_HelloExtensionHandlerFunc server_hello_handler, void *context) {
-    ssl3CustomHelloExtensionHandler *handler = PORT_Alloc(sizeof(*handler));
-    handler->ex_type = ex_type;
-    handler->ex_handler = server_hello_handler;
-    handler->context = context;
-    hello_extension_collection_append(serverHelloHandlersTLS, handler);
+SSL_SetCustomClientHelloTLS(PRInt32 ex_type,
+                            SSL_HelloExtensionHandlerFunc hello_sender,
+                            void *sender_context,
+                            SSL_HelloExtensionHandlerFunc server_hello_handler,
+                            void *handler_context) {
+    ssl3HelloExtensionSender sender;
+    sender.ex_type = ex_type;
+    sender.ex_sender = hello_sender; // TODO fix
+    sender.context = sender_context;
+    ssl3_ExtensionSenderCollectionAppend(&clientHelloSendersTLS, &sender);
 
-    // TODO add the hello sender to a similar structure.
+    ssl3CustomHelloExtensionHandler handler;
+    handler.ex_type = ex_type;
+    handler.ex_handler = server_hello_handler;
+    handler.context = handler_context;
+    hello_extension_collection_append(&serverHelloHandlersTLS, &handler);
 }
 
-SECStatus SSL_RegisterServerHelloExtensionSender(PRFileDesc *fd, PRUint16 ex_type,
-                                                 ssl3HelloExtensionSenderFunc cb) {
-    return ssl3_RegisterServerHelloExtensionSender(ssl_FindSocket(fd), ex_type, cb);
+
+
+// TODO Expose needed functionality of sslSocket to a client who only has the
+// corresponding PRFileDesc. Right now, nothing the provided sender can't do
+// anything, including actually sending data, since that functionality is
+// exposed through the private sslSocket*
+SECStatus SSL_RegisterServerHelloExtensionSender(void *context, PRFileDesc *fd,
+                                                 PRUint16 ex_type,
+                                                 SSL_HelloExtensionSenderFunc cb) {
+    return ssl3_RegisterServerHelloExtensionSender(context, ssl_FindSocket(fd), ex_type, cb);
 }
 
+// client_hello_handler should call SSL_RegisterServerHelloExtensionSender when it
+// wants to respond with serverhello info.
 void
-SSL_SetCustomServerHello(PRInt32 ex_type, ssl3HellExtensionHandlerFunc client_hello_handler,
+SSL_SetCustomServerHello(PRInt32 ex_type, SSL_HelloExtensionHandlerFunc client_hello_handler,
                          void *context) {
-    // client_hello_handler should call SSL_RegisterServerHelloExtensionSender when it
-    // wants to respond with serverhello info.
 
     ssl3CustomHelloExtensionHandler *handler = PORT_Alloc(sizeof(*handler));
     handler->ex_type = ex_type;
     handler->ex_handler = client_hello_handler;
     handler->context = context;
-    hello_extension_collection_append(clientHelloHandlers, handler);
+    hello_extension_collection_append(&clientHelloHandlers, handler);
 }
 

@@ -196,8 +196,8 @@ typedef sslSessionID *(*sslSessionIDLookupFunc)(const PRIPv6Addr    *addr,
 /* registerable callback function that either appends extension to buffer
  * or returns length of data that it would have appended.
  */
-typedef PRInt32 (*ssl3HelloExtensionSenderFunc)(sslSocket *ss, PRBool append,
-						PRUint32 maxBytes);
+typedef PRInt32 (*SSL_HelloExtensionSenderFunc)(void *context, PRFileDesc *fd,
+						 PRBool append, PRUint32 maxBytes);
 
 /* registerable callback function that handles a received extension, 
  * of the given type.
@@ -209,7 +209,8 @@ typedef SECStatus (* ssl3HelloExtensionHandlerFunc)(sslSocket *ss,
 /* row in a table of hello extension senders */
 typedef struct {
     PRInt32                      ex_type;
-    ssl3HelloExtensionSenderFunc ex_sender;
+    SSL_HelloExtensionSenderFunc ex_sender;
+    void *context;
 } ssl3HelloExtensionSender;
 
 /* row in a table of hello extension handlers */
@@ -220,8 +221,6 @@ typedef struct {
 
 typedef SECStatus (*SSL_HelloExtensionHandlerFunc)(void *context, PRFileDesc *fd,
                                                     PRUint16 ex_type, SECItem *data);
-typedef PRInt32 (*SSL_HelloExtensionSenderFunc)(void *context, PRFileDesc *fd,
-                                                PRBool append, PRUint32 maxBytes);
 
 /* A client-supplied Hello Extension handler */
 typedef struct {
@@ -240,11 +239,18 @@ typedef struct {
     PRInt32 custom_alloced_len;
 } ssl3HelloExtensionHandlerCollection;
 
+typedef struct {
+    ssl3HelloExtensionSender *senders;
+    PRInt32 len;
+    PRInt32 alloc_len;
+} ssl3HelloSenderCollection;
+
+
 #define INITIAL_CUSTOM_HANDLERS_ARR_SIZE 4
 
 extern SECStatus 
-ssl3_RegisterServerHelloExtensionSender(sslSocket *ss, PRUint16 ex_type,
-				        ssl3HelloExtensionSenderFunc cb);
+ssl3_RegisterServerHelloExtensionSender(void *context, sslSocket *ss, PRUint16 ex_type,
+				        SSL_HelloExtensionSenderFunc cb);
 
 extern PRInt32
 ssl3_CallHelloExtensionSenders(sslSocket *ss, PRBool append, PRUint32 maxBytes,
@@ -760,8 +766,9 @@ typedef struct SessionTicketDataStr      SessionTicketData;
 
 struct TLSExtensionDataStr {
     /* registered callbacks that send server hello extensions */
-    ssl3HelloExtensionSender serverSenders[SSL_MAX_EXTENSIONS];
+    ssl3HelloSenderCollection serverSenders;    // TODO Where to call init?
     /* Keep track of the extensions that are negotiated. */
+    // TODO don't assume a max number of extensions
     PRUint16 numAdvertised;
     PRUint16 numNegotiated;
     PRUint16 advertised[SSL_MAX_EXTENSIONS];
@@ -1657,14 +1664,14 @@ extern SECStatus ssl3_ServerHandleSessionTicketXtn(sslSocket *ss,
  * Note that not all extension senders are exposed here; only those that
  * that need exposure.
  */
-extern PRInt32 ssl3_SendSessionTicketXtn(sslSocket *ss, PRBool append,
-			PRUint32 maxBytes);
+extern PRInt32 ssl3_SendSessionTicketXtn(void *context, PRFileDesc *fd, PRBool append,
+                                         PRUint32 maxBytes);
 
 /* ClientHello and ServerHello extension senders.
  * The code is in ssl3ext.c.
  */
-extern PRInt32 ssl3_SendServerNameXtn(sslSocket *ss, PRBool append,
-                     PRUint32 maxBytes);
+extern PRInt32 ssl3_SendServerNameXtn(void *context, PRFileDesc *fd, PRBool append,
+                                      PRUint32 maxBytes);
 
 /* Assigns new cert, cert chain and keys to ss->serverCerts
  * struct. If certChain is NULL, tries to find one. Aborts if

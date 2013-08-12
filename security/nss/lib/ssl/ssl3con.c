@@ -7565,6 +7565,7 @@ ssl3_SendServerHello(sslSocket *ss)
 
     sid = ss->sec.ci.sid;
 
+    // TODO
     extensions_len = ssl3_CallHelloExtensionSenders(ss, PR_FALSE, maxBytes,
 					       &ss->xtnData.serverSenders[0]);
     if (extensions_len > 0)
