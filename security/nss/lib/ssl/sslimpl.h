@@ -239,6 +239,7 @@ typedef struct {
     PRInt32 custom_alloced_len;
 } ssl3HelloExtensionHandlerCollection;
 
+/* A full set of Hello Extension senders. */
 typedef struct {
     ssl3HelloExtensionSender *senders;
     PRInt32 len;

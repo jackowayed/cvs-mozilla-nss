@@ -435,15 +435,18 @@ abstract_extension_handler_call(ssl3AbstractHelloExtensionHandler *handler,
     }
 }
 
+/* Initialize coll, starting its senders with builtin, which is a
+   total of builtin_bytes bytes long. */
 static void
 ssl3_ExtensionSenderCollectionInit(ssl3HelloSenderCollection *coll,
                          const ssl3HelloExtensionSender *builtin,
                          PRInt32 builtin_bytes) {
-    coll->alloc_len = coll->len = builtin_bytes;
+    coll->alloc_len = coll->len = builtin_bytes / sizeof(*builtin);
     clientHelloSendersTLS.senders = PORT_Alloc(builtin_bytes);
     PORT_Memcpy(coll->senders, builtin, builtin_bytes);
 }
 
+/* Call Init on coll iff it has not been inited. */
 static void
 ssl3_ExtensionSenderCollectionEnsureInited(ssl3HelloSenderCollection *coll,
                                            const ssl3HelloExtensionSender *builtin,
@@ -453,6 +456,7 @@ ssl3_ExtensionSenderCollectionEnsureInited(ssl3HelloSenderCollection *coll,
     }
 }
 
+/* Append sender to coll's list of senders. */
 static void
 ssl3_ExtensionSenderCollectionAppend(ssl3HelloSenderCollection *coll,
                                      ssl3HelloExtensionSender* sender) {
@@ -2201,10 +2205,17 @@ ssl3_HandleUseSRTPXtn(sslSocket * ss, PRUint16 ex_type, SECItem *data)
 }
 
 
-
+// TODO put these functions in appropriate header and in the .def file.
+/* Add support for a custom TLS extension when we are the client of
+   a connection.
+   - ex_type is the IANA number identifying the extension. TODO endianness? 
+   - hello_sender will be called to append data to the ClientHello
+   - sender_context will be passed to hello_sender
+   - server_hello_handler will be provided the extension data from ServerHello
+   - handler_context will be passed to server_hello_handler */
 void
 SSL_SetCustomClientHelloTLS(PRInt32 ex_type,
-                            SSL_HelloExtensionHandlerFunc hello_sender,
+                            SSL_HelloExtensionSenderFunc hello_sender,
                             void *sender_context,
                             SSL_HelloExtensionHandlerFunc server_hello_handler,
                             void *handler_context) {
@@ -2227,14 +2238,27 @@ SSL_SetCustomClientHelloTLS(PRInt32 ex_type,
 // corresponding PRFileDesc. Right now, nothing the provided sender can't do
 // anything, including actually sending data, since that functionality is
 // exposed through the private sslSocket*
+/* Register a ServerHello extension sender for the TLS connection associated
+   with fd.
+ */
 SECStatus SSL_RegisterServerHelloExtensionSender(void *context, PRFileDesc *fd,
                                                  PRUint16 ex_type,
-                                                 SSL_HelloExtensionSenderFunc cb) {
-    return ssl3_RegisterServerHelloExtensionSender(context, ssl_FindSocket(fd), ex_type, cb);
+                                                 SSL_HelloExtensionSenderFunc sender) {
+    return ssl3_RegisterServerHelloExtensionSender(context, ssl_FindSocket(fd),
+                                                   ex_type, sender);
 }
 
-// client_hello_handler should call SSL_RegisterServerHelloExtensionSender when it
-// wants to respond with serverhello info.
+/* Add support for a custom TLS extension when we are the server of a
+   connection.
+   - ex_type is the IANA number identifying the extension. TODO endianness?
+   - client_hello_handler will be called on receipt of a proper ClientHello extension
+   - context will be passed to client_hello_handler.
+
+   This does not register a Sender to send the ServerHello extension, as this is
+   registered per-connection, rather than globally.
+   client_hello_handler should call SSL_RegisterServerHelloExtensionSender when it
+   wants to use the extension and thus respond with a ServerHello extension.
+*/
 void
 SSL_SetCustomServerHello(PRInt32 ex_type, SSL_HelloExtensionHandlerFunc client_hello_handler,
                          void *context) {
