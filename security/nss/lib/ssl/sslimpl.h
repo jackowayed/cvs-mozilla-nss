@@ -255,7 +255,7 @@ ssl3_RegisterServerHelloExtensionSender(void *context, sslSocket *ss, PRUint16 e
 
 extern PRInt32
 ssl3_CallHelloExtensionSenders(sslSocket *ss, PRBool append, PRUint32 maxBytes,
-                               const ssl3HelloExtensionSender *sender);
+                               const ssl3HelloSenderCollection *senders);
 
 /* Socket ops */
 struct sslSocketOpsStr {

@@ -285,12 +285,15 @@ ssl3HelloExtensionSender builtinClientHelloSendersTLS[] = {
 };
 
 static
-ssl3HelloSenderCollection clientHelloSendersTLS = {NULL, -1, -1};
+ssl3HelloSenderCollection clientHelloSendersTLS = { NULL, -1, -1 };
 
 static const 
-ssl3HelloExtensionSender clientHelloSendersSSL3[] = {
+ssl3HelloExtensionSender builtinClientHelloSendersSSL3[] = {
     { ssl_renegotiation_info_xtn, &ssl3_SendRenegotiationInfoXtn, NULL }
 };
+
+static
+ssl3HelloSenderCollection clientHelloSendersSSL3 = { NULL, -1, -1 };
 
 /* Initialize coll, whose builtin must already be populated. */
 static void
@@ -1871,26 +1874,29 @@ ssl3_RegisterServerHelloExtensionSender(void *context, sslSocket *ss, PRUint16 e
 /* call each of the extension senders and return the accumulated length */
 PRInt32
 ssl3_CallHelloExtensionSenders(sslSocket *ss, PRBool append, PRUint32 maxBytes,
-                               const ssl3HelloExtensionSender *sender)
+                               const ssl3HelloSenderCollection *senders)
 {
     PRInt32 total_exten_len = 0;
     int i;
 
-    if (!sender) {
+    if (!senders) {
         if (ss->version > SSL_LIBRARY_VERSION_3_0) {
             ssl3_ExtensionSenderCollectionEnsureInited(&clientHelloSendersTLS,
                                                        builtinClientHelloSendersTLS,
                                                        sizeof(builtinClientHelloSendersTLS));
-            sender = &clientHelloSendersTLS.senders[0];
+            senders = &clientHelloSendersTLS;
         } else {
-            sender = &clientHelloSendersSSL3[0];
+            ssl3_ExtensionSenderCollectionEnsureInited(&clientHelloSendersSSL3,
+                                                       builtinClientHelloSendersSSL3,
+                                                       sizeof(builtinClientHelloSendersSSL3));
+
+            senders = &clientHelloSendersSSL3;
         }
     }
 
+    ssl3HelloExtensionSender *sender = &senders->senders[0];
 
-    // TODO fix this iteration, have it read the length from the Collection
-    // probably need to wrap the SSL3 one in a collection.
-    for (i = 0; i < SSL_MAX_EXTENSIONS; ++i, ++sender) {
+    for (i = 0; i < senders->len; ++i, ++sender) {
 	if (sender->ex_sender) {
 	    PRInt32 extLen = (*sender->ex_sender)(sender->context, ss->fd, append, maxBytes);
 	    if (extLen < 0)
@@ -2208,7 +2214,7 @@ ssl3_HandleUseSRTPXtn(sslSocket * ss, PRUint16 ex_type, SECItem *data)
 // TODO put these functions in appropriate header and in the .def file.
 /* Add support for a custom TLS extension when we are the client of
    a connection.
-   - ex_type is the IANA number identifying the extension. TODO endianness? 
+   - ex_type is the IANA number identifying the extension. (machine-byte order)
    - hello_sender will be called to append data to the ClientHello
    - sender_context will be passed to hello_sender
    - server_hello_handler will be provided the extension data from ServerHello
@@ -2221,7 +2227,7 @@ SSL_SetCustomClientHelloTLS(PRInt32 ex_type,
                             void *handler_context) {
     ssl3HelloExtensionSender sender;
     sender.ex_type = ex_type;
-    sender.ex_sender = hello_sender; // TODO fix
+    sender.ex_sender = hello_sender;
     sender.context = sender_context;
     ssl3_ExtensionSenderCollectionAppend(&clientHelloSendersTLS, &sender);
 
@@ -2250,7 +2256,7 @@ SECStatus SSL_RegisterServerHelloExtensionSender(void *context, PRFileDesc *fd,
 
 /* Add support for a custom TLS extension when we are the server of a
    connection.
-   - ex_type is the IANA number identifying the extension. TODO endianness?
+   - ex_type is the IANA number identifying the extension. (machine-byte order)
    - client_hello_handler will be called on receipt of a proper ClientHello extension
    - context will be passed to client_hello_handler.
 
