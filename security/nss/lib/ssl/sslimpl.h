@@ -775,7 +775,6 @@ struct TLSExtensionDataStr {
     /* registered callbacks that send server hello extensions */
     ssl3HelloSenderCollection serverSenders;    // TODO Where to call init?
     /* Keep track of the extensions that are negotiated. */
-    // TODO where to initialize?
     Uint16Array advertised;
     Uint16Array negotiated;
 
