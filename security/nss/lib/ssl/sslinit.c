@@ -15,6 +15,8 @@
 
 static int ssl_inited = 0;
 
+// TODO(DJ) is this always called before anything else?
+// Consider doing init work here instad of EnsureInit stuff.
 SECStatus
 ssl_Init(void)
 {

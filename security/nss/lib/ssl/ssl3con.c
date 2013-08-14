@@ -6792,7 +6792,7 @@ ssl3_HandleClientHello(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
      * resuming.)
      */
     if (ssl3_ExtensionNegotiated(ss, ssl_session_ticket_xtn) && sid == NULL) {
-	ssl3_RegisterServerHelloExtensionSender(ss,
+	ssl3_RegisterServerHelloExtensionSender(NULL, ss,
 	    ssl_session_ticket_xtn, ssl3_SendSessionTicketXtn);
     }
 
@@ -7250,7 +7250,7 @@ compression_found:
                 /* Need to tell the client that application has picked
                  * the name from the offered list and reconfigured the socket.
                  */
-                ssl3_RegisterServerHelloExtensionSender(ss, ssl_server_name_xtn,
+                ssl3_RegisterServerHelloExtensionSender(NULL, ss, ssl_server_name_xtn,
                                                         ssl3_SendServerNameXtn);
             } else {
                 /* Callback returned index outside of the boundary. */
@@ -7566,7 +7566,7 @@ ssl3_SendServerHello(sslSocket *ss)
     sid = ss->sec.ci.sid;
 
     extensions_len = ssl3_CallHelloExtensionSenders(ss, PR_FALSE, maxBytes,
-					       &ss->xtnData.serverSenders[0]);
+					       &ss->xtnData.serverSenders);
     if (extensions_len > 0)
     	extensions_len += 2; /* Add sizeof total extension length */
 
@@ -7624,7 +7624,7 @@ ssl3_SendServerHello(sslSocket *ss)
 	if (rv != SECSuccess) 
 	    return rv;	/* err set by ssl3_SetupPendingCipherSpec */
 	sent_len = ssl3_CallHelloExtensionSenders(ss, PR_TRUE, extensions_len,
-					   &ss->xtnData.serverSenders[0]);
+					   &ss->xtnData.serverSenders);
         PORT_Assert(sent_len == extensions_len);
 	if (sent_len != extensions_len) {
 	    if (sent_len >= 0)

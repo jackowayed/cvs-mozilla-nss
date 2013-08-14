@@ -172,7 +172,6 @@ typedef enum {
 } SSLSniNameType;
 
 /* Supported extensions. */
-/* Update SSL_MAX_EXTENSIONS whenever a new extension type is added. */
 typedef enum {
     ssl_server_name_xtn              = 0,
     ssl_cert_status_xtn              = 5,
@@ -185,7 +184,5 @@ typedef enum {
     ssl_next_proto_nego_xtn          = 13172,
     ssl_renegotiation_info_xtn       = 0xff01	/* experimental number */
 } SSLExtensionType;
-
-#define SSL_MAX_EXTENSIONS             8
 
 #endif /* __sslt_h_ */
