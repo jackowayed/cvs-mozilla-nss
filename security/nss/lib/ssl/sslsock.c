@@ -2979,6 +2979,8 @@ ssl_NewSocket(PRBool makeLocks, SSLProtocolVariant protocolVariant)
 	ssl2_InitSocketPolicy(ss);
 	ssl3_InitSocketPolicy(ss);
 	PR_INIT_CLIST(&ss->ssl3.hs.lastMessageFlight);
+  uint16ArrayInit(&ss->xtnData.advertised);
+  uint16ArrayInit(&ss->xtnData.negotiated);
 
 	if (makeLocks) {
 	    status = ssl_MakeLocks(ss);

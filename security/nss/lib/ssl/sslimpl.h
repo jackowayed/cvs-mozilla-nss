@@ -765,15 +765,19 @@ typedef enum {
 typedef struct TLSExtensionDataStr       TLSExtensionData;
 typedef struct SessionTicketDataStr      SessionTicketData;
 
+typedef struct {
+    PRUint16 *data;
+    PRUint16 alloc_len;
+    PRUint16 len;
+} Uint16Array;
+
 struct TLSExtensionDataStr {
     /* registered callbacks that send server hello extensions */
     ssl3HelloSenderCollection serverSenders;    // TODO Where to call init?
     /* Keep track of the extensions that are negotiated. */
-    // TODO don't assume a max number of extensions
-    PRUint16 numAdvertised;
-    PRUint16 numNegotiated;
-    PRUint16 advertised[SSL_MAX_EXTENSIONS];
-    PRUint16 negotiated[SSL_MAX_EXTENSIONS];
+    // TODO where to initialize?
+    Uint16Array advertised;
+    Uint16Array negotiated;
 
     /* SessionTicket Extension related data. */
     PRBool ticketTimestampVerified;
@@ -1833,5 +1837,9 @@ extern int __cdecl _getpid(void);
 #else
 #define SSL_GETPID() 0
 #endif
+
+
+void uint16ArrayInit(Uint16Array *arr);
+void uint16ArrayAppend(Uint16Array *arr, PRUint16 new_data);
 
 #endif /* __sslimpl_h_ */

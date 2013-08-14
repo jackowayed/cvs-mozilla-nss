@@ -217,6 +217,26 @@ ssl3_GetSessionTicketKeys(const unsigned char **aes_key,
 }
 #endif
 
+
+void
+uint16ArrayInit(Uint16Array *arr) {
+    arr->alloc_len = 4;
+    arr->data = PORT_Alloc(arr->alloc_len * sizeof(*arr));
+    arr->len = 0;
+}
+
+void
+uint16ArrayAppend(Uint16Array *arr, PRUint16 new_data) {
+    if (arr->alloc_len == arr->len) {
+        arr->alloc_len *= 2;
+        arr->data = PORT_Realloc(arr->data, arr->alloc_len * sizeof(*arr));
+    }
+
+    arr->data[arr->len] = new_data;
+    ++arr->len;
+}
+
+
 /* Table of handlers for received TLS hello extensions, one per extension.
  * In the second generation, this table will be dynamic, and functions
  * will be registered here.
@@ -488,15 +508,15 @@ arrayContainsExtension(const PRUint16 *array, PRUint32 len, PRUint16 ex_type)
 PRBool
 ssl3_ExtensionNegotiated(sslSocket *ss, PRUint16 ex_type) {
     TLSExtensionData *xtnData = &ss->xtnData;
-    return arrayContainsExtension(xtnData->negotiated,
-	                          xtnData->numNegotiated, ex_type);
+    return arrayContainsExtension(xtnData->negotiated.data,
+	                          xtnData->negotiated.len, ex_type);
 }
 
 static PRBool
 ssl3_ClientExtensionAdvertised(sslSocket *ss, PRUint16 ex_type) {
     TLSExtensionData *xtnData = &ss->xtnData;
-    return arrayContainsExtension(xtnData->advertised,
-	                          xtnData->numAdvertised, ex_type);
+    return arrayContainsExtension(xtnData->advertised.data,
+	                          xtnData->advertised.len, ex_type);
 }
 
 /* Format an SNI extension, using the name from the socket's URL,
@@ -543,8 +563,7 @@ ssl3_SendServerNameXtn(void *context, PRFileDesc *fd, PRBool append,
             if (rv != SECSuccess) return -1;
             if (!ss->sec.isServer) {
                 TLSExtensionData *xtnData = &ss->xtnData;
-                xtnData->advertised[xtnData->numAdvertised++] = 
-		    ssl_server_name_xtn;
+                uint16ArrayAppend(&xtnData->advertised, ssl_server_name_xtn);
             }
         }
         return len + 9;
@@ -649,7 +668,7 @@ ssl3_HandleServerNameXtn(sslSocket * ss, PRUint16 ex_type, SECItem *data)
     }
     xtnData->sniNameArr = names;
     xtnData->sniNameArrSize = namesPos;
-    xtnData->negotiated[xtnData->numNegotiated++] = ssl_server_name_xtn;
+    uint16ArrayAppend(&xtnData->negotiated, ssl_server_name_xtn);
 
     return SECSuccess;
 
@@ -720,8 +739,7 @@ ssl3_SendSessionTicketXtn(void *context, PRFileDesc *fd, PRBool append,
 
 	if (!ss->sec.isServer) {
 	    TLSExtensionData *xtnData = &ss->xtnData;
-	    xtnData->advertised[xtnData->numAdvertised++] = 
-		ssl_session_ticket_xtn;
+	    uint16ArrayAppend(&xtnData->advertised, ssl_session_ticket_xtn);
 	}
     } else if (maxBytes < extension_length) {
 	PORT_Assert(0);
@@ -744,7 +762,7 @@ ssl3_ServerHandleNextProtoNegoXtn(sslSocket * ss, PRUint16 ex_type, SECItem *dat
 	return SECFailure;
     }
 
-    ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ex_type;
+    uint16ArrayAppend(&ss->xtnData.negotiated, ex_type);
 
     /* TODO: server side NPN support would require calling
      * ssl3_RegisterServerHelloExtensionSender here in order to echo the
@@ -818,7 +836,7 @@ ssl3_ClientHandleNextProtoNegoXtn(sslSocket *ss, PRUint16 ex_type,
 	return SECFailure;
     }
 
-    ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ex_type;
+    uint16ArrayAppend(&ss->xtnData.negotiated, ex_type);
 
     SECITEM_FreeItem(&ss->ssl3.nextProto, PR_FALSE);
     return SECITEM_CopyItem(NULL, &ss->ssl3.nextProto, &result);
@@ -848,8 +866,7 @@ ssl3_ClientSendNextProtoNegoXtn(void *context, PRFileDesc *fd, PRBool append,
 	rv = ssl3_AppendHandshakeNumber(ss, 0, 2);
 	if (rv != SECSuccess)
 	    goto loser;
-	ss->xtnData.advertised[ss->xtnData.numAdvertised++] =
-		ssl_next_proto_nego_xtn;
+	uint16ArrayAppend(&ss->xtnData.advertised, ssl_next_proto_nego_xtn);
     } else if (maxBytes < extension_length) {
 	return 0;
     }
@@ -869,7 +886,7 @@ ssl3_ClientHandleStatusRequestXtn(sslSocket *ss, PRUint16 ex_type,
        return SECFailure;
 
     /* Keep track of negotiated extensions. */
-    ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ex_type;
+    uint16ArrayAppend(&ss->xtnData.negotiated, ex_type);
 
     return SECSuccess;
 }
@@ -951,7 +968,7 @@ ssl3_ClientSendStatusRequestXtn(void *context, PRFileDesc *fd, PRBool append,
            return -1;
 
        xtnData = &ss->xtnData;
-       xtnData->advertised[xtnData->numAdvertised++] = ssl_cert_status_xtn;
+       uint16ArrayAppend(&xtnData->advertised, ssl_cert_status_xtn);
     } else if (maxBytes < extension_length) {
        PORT_Assert(0);
        return 0;
@@ -1311,7 +1328,7 @@ ssl3_ClientHandleSessionTicketXtn(sslSocket *ss, PRUint16 ex_type,
 	return SECFailure;
 
     /* Keep track of negotiated extensions. */
-    ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ex_type;
+    uint16ArrayAppend(&ss->xtnData.negotiated, ex_type);
     return SECSuccess;
 }
 
@@ -1330,7 +1347,7 @@ ssl3_ServerHandleSessionTicketXtn(sslSocket *ss, PRUint16 ex_type,
 	return SECSuccess;
 
     /* Keep track of negotiated extensions. */
-    ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ex_type;
+    uint16ArrayAppend(&ss->xtnData.negotiated, ex_type);
 
     /* Parse the received ticket sent in by the client.  We are
      * lenient about some parse errors, falling back to a fullshake
@@ -1948,8 +1965,7 @@ ssl3_SendRenegotiationInfoXtn(void *context, PRFileDesc *fd, PRBool append,
 	if (rv != SECSuccess) return -1;
 	if (!ss->sec.isServer) {
 	    TLSExtensionData *xtnData = &ss->xtnData;
-	    xtnData->advertised[xtnData->numAdvertised++] = 
-	                                           ssl_renegotiation_info_xtn;
+	    uint16ArrayAppend(&xtnData->advertised, ssl_renegotiation_info_xtn);
 	}
     }
     return needed;
@@ -1963,7 +1979,7 @@ ssl3_ServerHandleStatusRequestXtn(sslSocket *ss, PRUint16 ex_type,
     PRUint32 len = 0;
 
     /* remember that we got this extension. */
-    ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ex_type;
+    uint16ArrayAppend(&ss->xtnData.negotiated, ex_type);
     PORT_Assert(ss->sec.isServer);
     /* prepare to send back the appropriate response */
     rv = ssl3_RegisterServerHelloExtensionSender(NULL, ss, ex_type,
@@ -1993,7 +2009,7 @@ ssl3_HandleRenegotiationInfoXtn(sslSocket *ss, PRUint16 ex_type, SECItem *data)
     }
     /* remember that we got this extension and it was correct. */
     ss->peerRequestedProtection = 1;
-    ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ex_type;
+    uint16ArrayAppend(&ss->xtnData.negotiated, ex_type);
     if (ss->sec.isServer) {
 	/* prepare to send back the appropriate response */
         rv = ssl3_RegisterServerHelloExtensionSender(NULL, ss, ex_type,
@@ -2045,8 +2061,7 @@ ssl3_SendUseSRTPXtn(void *context, PRFileDesc *fd, PRBool append,
 	    /* Empty MKI value */
 	    ssl3_AppendHandshakeVariable(ss, NULL, 0, 1);
 
-	    ss->xtnData.advertised[ss->xtnData.numAdvertised++] =
-		ssl_use_srtp_xtn;
+	    uint16ArrayAppend(&ss->xtnData.advertised, ssl_use_srtp_xtn);
 	}
 
 	return 4 + ext_data_len;
@@ -2146,7 +2161,7 @@ ssl3_HandleUseSRTPXtn(sslSocket * ss, PRUint16 ex_type, SECItem *data)
 	}
 
 	/* OK, this looks fine. */
-	ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ssl_use_srtp_xtn;
+	uint16ArrayAppend(&ss->xtnData.negotiated, ssl_use_srtp_xtn);
 	ss->ssl3.dtlsSRTPCipherSuite = cipher;
 	return SECSuccess;
     }
@@ -2204,11 +2219,12 @@ ssl3_HandleUseSRTPXtn(sslSocket * ss, PRUint16 ex_type, SECItem *data)
 
     /* OK, we have a valid cipher and we've selected it */
     ss->ssl3.dtlsSRTPCipherSuite = cipher;
-    ss->xtnData.negotiated[ss->xtnData.numNegotiated++] = ssl_use_srtp_xtn;
+    uint16ArrayAppend(&ss->xtnData.negotiated, ssl_use_srtp_xtn);
 
     return ssl3_RegisterServerHelloExtensionSender(NULL, ss, ssl_use_srtp_xtn,
 						   ssl3_SendUseSRTPXtn);
 }
+
 
 
 // TODO put these functions in appropriate header and in the .def file.
